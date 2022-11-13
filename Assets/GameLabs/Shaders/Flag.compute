@@ -1,0 +1,21 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel SimulateFlag
+
+RWStructuredBuffer<float3> Vertices;
+RWStructuredBuffer<float3> Normals;
+StructuredBuffer<float2> UVs;
+float Time;
+float Amplitude;
+float WaveLength;
+float Speed;
+
+[numthreads(4,1,1)]
+void SimulateFlag (uint3 id : SV_DispatchThreadID)
+{
+        float k = 2 * 3.1415927 / WaveLength;
+        float f = k * (Vertices[id.x].x - Speed * Time);        
+        Vertices[id.x].y = -UVs[id.x] * Amplitude * sin(f);
+
+        float3 tangent = normalize(float3(1, k * Amplitude * cos(f), 0));
+        Normals[id.x] = float3(-tangent.y, tangent.x, 0);
+}
