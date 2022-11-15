@@ -8,37 +8,50 @@ namespace Ships
     {
         [SerializeField] private DataBase dataBase;
         [SerializeField] private List<MonoChild> monoChildren;
-
-        private SignalBus signalBus = new SignalBus();
+        
+        private SingletonContainer m_Container;
+        private SignalBus m_SignalBus;
 
         private void Start()
         {
+            m_Container = SingletonContainer.Instance;
+            m_Container.Add<SignalBus>(new SignalBus());
+            m_Container.Add<DataBase>(dataBase);
+
+            m_SignalBus = m_Container.Get<SignalBus>();
+            
             DeclareSignals();
             Init();
         }
-        
+
+        private void OnDestroy()
+        {
+            m_Container.Remove<SignalBus>();
+            m_Container.Remove<DataBase>();
+        }
+
         private void DeclareSignals()
         {
-            signalBus.DeclareSignal<SignalAddModuleForShip>();
-            signalBus.DeclareSignal<SignalAddWeaponForShip>();
-            signalBus.DeclareSignal<SignalClickModuleSlot>();
-            signalBus.DeclareSignal<SignalClickWeaponSlot>();
-            signalBus.DeclareSignal<SignalEndFight>();
-            signalBus.DeclareSignal<SignalRemoveAllModules>();
-            signalBus.DeclareSignal<SignalShipDeath>();
-            signalBus.DeclareSignal<SignalChangeShipShieldAndHealth>();
-            signalBus.DeclareSignal<SignalStartFight>();
-            signalBus.DeclareSignal<SignalUpdateShipInfo>();
-            signalBus.DeclareSignal<SignalWeaponFire>();
-            signalBus.DeclareSignal<SignalWinner>();
-            signalBus.DeclareSignal<SignalMessage>();
+            m_SignalBus.DeclareSignal<SignalAddModuleForShip>();
+            m_SignalBus.DeclareSignal<SignalAddWeaponForShip>();
+            m_SignalBus.DeclareSignal<SignalClickModuleSlot>();
+            m_SignalBus.DeclareSignal<SignalClickWeaponSlot>();
+            m_SignalBus.DeclareSignal<SignalEndFight>();
+            m_SignalBus.DeclareSignal<SignalRemoveAllModules>();
+            m_SignalBus.DeclareSignal<SignalShipDeath>();
+            m_SignalBus.DeclareSignal<SignalChangeShipShieldAndHealth>();
+            m_SignalBus.DeclareSignal<SignalStartFight>();
+            m_SignalBus.DeclareSignal<SignalUpdateShipInfo>();
+            m_SignalBus.DeclareSignal<SignalWeaponFire>();
+            m_SignalBus.DeclareSignal<SignalWinner>();
+            m_SignalBus.DeclareSignal<SignalMessage>();
         }
 
         private void Init()
         {
             foreach (var child in monoChildren)
             {
-                child.OnStart(signalBus, dataBase);
+                child.OnStart();
             }
         }
 

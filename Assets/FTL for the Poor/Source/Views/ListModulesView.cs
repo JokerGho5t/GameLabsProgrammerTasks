@@ -13,22 +13,42 @@ namespace Ships
         [SerializeField] private Button closeButton;
         [SerializeField] private ModuleItem prefab;
 
-        private SignalBus m_SignalBus;
         private ShipData m_TargetShip;
         private int m_SlotIdx;
-        
-        public void Init(SignalBus signalBus, List<WeaponData> weapons, List<ModuleData> modules)
-        {
-            m_SignalBus = signalBus;
-            
-            InitSlots(weapons, modules);
-            
-            closeButton.onClick.AddListener(OnClose);
-            
-            OnClose();
 
-            signalBus.Subscribe<SignalClickWeaponSlot>(SelectWeaponSlot);
-            signalBus.Subscribe<SignalClickModuleSlot>(SelectModuleSlot);
+        public void Init(List<WeaponData> weapons, List<ModuleData> modules, Action<SignalAddWeaponForShip> onAddWeapon,
+            Action<SignalAddModuleForShip> onAddModule)
+        {
+            for (var i = 0; i < weapons.Count; i++)
+            {
+                var btn = Instantiate(prefab, containerListWeapons);
+                var idx = i;
+                btn.Init(weapons[i].Name, weapons[i].TextInfo,
+                    () =>
+                    {
+                        onAddWeapon(new SignalAddWeaponForShip(m_TargetShip, m_SlotIdx, weapons[idx]));
+                        OnClose();
+                    });
+            }
+
+            for (var i = 0; i < modules.Count; i++)
+            {
+                var btn = Instantiate(prefab, containerListModules);
+                var idx = i;
+                btn.Init(modules[i].Name, modules[i].TextInfo,
+                    () =>
+                    {
+                        onAddModule(new SignalAddModuleForShip(m_TargetShip, m_SlotIdx, modules[idx]));
+                        OnClose();
+                    });
+            }
+
+            LayoutRebuilder.ForceRebuildLayoutImmediate(containerListWeapons);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(containerListModules);
+
+            closeButton.onClick.AddListener(OnClose);
+
+            OnClose();
         }
 
         private void OnClose()
@@ -37,40 +57,8 @@ namespace Ships
             containerListModules.gameObject.SetActive(false);
             containerListWeapons.gameObject.SetActive(false);
         }
-
-        private void InitSlots(List<WeaponData> weapons, List<ModuleData> modules)
-        {
-            for (var i = 0; i < weapons.Count; i++)
-            {
-                var btn = Instantiate(prefab, containerListWeapons);
-                var idx = i;
-                btn.Init(weapons[i].Name, weapons[i].TextInfo, () => OnClickWeapon(weapons[idx]));
-            }
-
-            for (var i = 0; i < modules.Count; i++)
-            {
-                var btn = Instantiate(prefab, containerListModules);
-                var idx = i;
-                btn.Init(modules[i].Name, modules[i].TextInfo, () => OnClickModule(modules[idx]));
-            }
-            
-            LayoutRebuilder.ForceRebuildLayoutImmediate(containerListWeapons);
-            LayoutRebuilder.ForceRebuildLayoutImmediate(containerListModules);
-        }
-
-        private void OnClickWeapon(WeaponData weaponData)
-        {
-            m_SignalBus.Fire(new SignalAddWeaponForShip(m_TargetShip, m_SlotIdx, weaponData));
-            OnClose();
-        }
         
-        private void OnClickModule(ModuleData moduleData)
-        {
-            m_SignalBus.Fire(new SignalAddModuleForShip(m_TargetShip, m_SlotIdx, moduleData));
-            OnClose();
-        }
-        
-        private void SelectWeaponSlot(SignalClickWeaponSlot signal)
+        public void SelectWeaponSlot(SignalClickWeaponSlot signal)
         {
             m_TargetShip = signal.OnShip;
             m_SlotIdx = signal.IdxSlot;
@@ -81,7 +69,7 @@ namespace Ships
             containerListWeapons.gameObject.SetActive(true);
         }
 
-        private void SelectModuleSlot(SignalClickModuleSlot signal)
+        public void SelectModuleSlot(SignalClickModuleSlot signal)
         {
             m_TargetShip = signal.OnShip;
             m_SlotIdx = signal.Idx;

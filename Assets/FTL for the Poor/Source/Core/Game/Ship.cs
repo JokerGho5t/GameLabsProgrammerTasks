@@ -1,4 +1,5 @@
-﻿using Ships.Signals;
+﻿using System;
+using Ships.Signals;
 using UnityEngine;
 
 namespace Ships
@@ -23,13 +24,22 @@ namespace Ships
         public ModuleData[] Modules { get; private set; }
         
 
-        private SignalBus m_SignalBus;
         private bool isDead => Health <= 0;
 
-        public void Init(SignalBus signalBus, ShipData data)
+        private Action<string> m_OnMessage;
+        private Action m_OnDeath;
+        private Action<float> m_OnWeaponFire;
+        private Action<Ship> m_ChangeHealthOrShield;
+
+        public void Init(ShipData data, Action<string> onMessage, Action onDeath, Action<float> onWeaponFire,
+            Action<Ship> changeHealthOrShield)
         {
-            m_SignalBus = signalBus;
             this.data = data;
+
+            m_OnMessage = onMessage;
+            m_OnDeath = onDeath;
+            m_OnWeaponFire = onWeaponFire;
+            m_ChangeHealthOrShield = changeHealthOrShield;
 
             m_AddMaxHealth = 0;
             m_AddMaxShield = 0;
@@ -51,8 +61,6 @@ namespace Ships
             {
                 weapon?.Recovery();
             }
-            
-            m_SignalBus.Fire(new SignalUpdateShipInfo(this));
         }
 
         public void Update()
@@ -77,20 +85,21 @@ namespace Ships
 
             timerShield = 0;
             Shield = Mathf.Clamp(++Shield, 0, MaxShield);
-            m_SignalBus.Fire(new SignalChangeShipShieldAndHealth(this));
-        }
-        
-        private void OnWeaponFire(WeaponSlot weapon, float damage)
-        {
-            m_SignalBus.Fire(new SignalMessage(CreateMessage($"Shot from <color=orange>{weapon.Name}</color>")));
-            m_SignalBus.Fire(new SignalMessage(
-                CreateMessage($"The gun will be reloaded after <color=green>{weapon.ReloadTime}</color>")));
-            m_SignalBus.Fire(new SignalWeaponFire(this, damage));
+            m_ChangeHealthOrShield(this);
         }
 
-        private string CreateMessage(string message)
+        private void OnWeaponFire(WeaponSlot weapon, float damage)
         {
-            return $"<color=#{ColorUtility.ToHtmlStringRGB(data.ColorMessage)}>{data.Name}</color>: " + message;
+            SendMessage(
+                $"Shot from <color=orange>{weapon.Name}</color>. " +
+                $"The gun will be reloaded after <color=green>{weapon.ReloadTime}</color>");
+            m_OnWeaponFire(damage);
+        }
+
+        private void SendMessage(string message)
+        {
+            m_OnMessage(
+                $"<color=#{ColorUtility.ToHtmlStringRGB(data.ColorMessage)}>{data.Name}</color>: " + message);
         }
 
         public void TakeDamage(float damage)
@@ -102,14 +111,14 @@ namespace Ships
                 if (damage <= Shield)
                 {
                     Shield -= damage;
-                    m_SignalBus.Fire(
-                        new SignalMessage(CreateMessage($"Shields withheld <color=blue>{damage}</color> damage")));
+                    SendMessage($"Shields withheld <color=blue>{damage}</color> damage");
                 }
                 else
                 {
                     Health = Mathf.Clamp(Health - (damage - Shield), 0, MaxHealth);
-                    m_SignalBus.Fire(new SignalMessage(CreateMessage(
-                        $"The shields were destroyed. The ship received <color=red>{damage - Shield}</color> damage")));
+                    SendMessage(
+                        $"The shields were destroyed. " +
+                        $"The ship received <color=red>{damage - Shield}</color> damage");
                     
                     Shield = 0;
                 }
@@ -117,22 +126,26 @@ namespace Ships
             else
             {
                 Health = Mathf.Clamp(Health - damage, 0, MaxHealth);
-                m_SignalBus.Fire(
-                    new SignalMessage(CreateMessage($"The ship received <color=red>{damage}</color> damage")));
+                SendMessage($"The ship received <color=red>{damage}</color> damage");
             }
 
-            m_SignalBus.Fire(new SignalChangeShipShieldAndHealth(this));
+            m_ChangeHealthOrShield(this);
             
             if (!isDead) return;
 
-            m_SignalBus.Fire(new SignalMessage(CreateMessage("I was defeated!")));
-            m_SignalBus.Fire(new SignalShipDeath(this));
+            SendMessage("I was defeated!");
+            m_OnDeath();
         }
 
         public void SetWeapon(int idxSlot, WeaponData weaponData)
         {
             Weapons[idxSlot] = new WeaponSlot(weaponData, x => OnWeaponFire(Weapons[idxSlot], x));
-            m_SignalBus.Fire(new SignalUpdateShipInfo(this));
+
+            foreach (var module in Modules)
+            {
+                if(module == null || module.ChangeReloadTimePercent == 0) continue;
+                Weapons[idxSlot].ChangeFactorReloadTime(module.ChangeReloadTimePercent);
+            }
         }
 
         public void SetModule(int idxSlot, ModuleData moduleData)
@@ -152,8 +165,6 @@ namespace Ships
                     weapon?.ChangeFactorReloadTime(moduleData.ChangeReloadTimePercent);
                 }
             }
-
-            m_SignalBus.Fire(new SignalUpdateShipInfo(this));
         }
         
         private void ClearModule(int idx)
@@ -178,8 +189,6 @@ namespace Ships
             {
                 Weapons[i] = null;
             }
-            
-            m_SignalBus.Fire(new SignalUpdateShipInfo(this));
         }
 
         public void ClearModules()
@@ -197,8 +206,6 @@ namespace Ships
             {
                 Modules[i] = null;
             }
-            
-            m_SignalBus.Fire(new SignalUpdateShipInfo(this));
         }
 
         public void ClearAllSlots()

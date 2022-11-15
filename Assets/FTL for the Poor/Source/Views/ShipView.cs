@@ -1,4 +1,5 @@
-﻿using Ships.Signals;
+﻿using System;
+using Ships.Signals;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -22,11 +23,12 @@ namespace Ships
 
         private ShipModuleItem[] m_Modules;
         private ShipModuleItem[] m_Weapons;
-        private ShipData m_ShipData;
-        
-        public void Init(SignalBus signalBus, ShipData shipData)
+
+        public ShipData ShipData { get; private set; }
+
+        public void Init(ShipData shipData, Action<SignalClickWeaponSlot> onClickWeaponSlot, Action<SignalClickModuleSlot> onClickModuleSlot)
         {
-            m_ShipData = shipData;
+            ShipData = shipData;
 
             icon.sprite = shipData.Icon;
             name.text = shipData.Name;
@@ -35,10 +37,7 @@ namespace Ships
             health.value = health.maxValue = shipData.MaxHealth;
             healthText.text = $"{shipData.MaxHealth} / {shipData.MaxHealth}";
 
-            InitSlots(signalBus, shipData);
-
-            signalBus.Subscribe<SignalUpdateShipInfo>(OnCallUpdate);
-            signalBus.Subscribe<SignalChangeShipShieldAndHealth>(OnRepaintShield);
+            InitSlots(shipData, onClickWeaponSlot, onClickModuleSlot);
         }
         
         public void Repaint(Ship ship)
@@ -71,7 +70,7 @@ namespace Ships
                 module.SetInteract(interact);
         }
 
-        private void InitSlots(SignalBus signalBus, ShipData shipData)
+        private void InitSlots(ShipData shipData, Action<SignalClickWeaponSlot> onClickWeaponSlot, Action<SignalClickModuleSlot> onClickModuleSlot)
         {
             m_Weapons = new ShipModuleItem[shipData.WeaponSlot];
             for (int i = 0; i < shipData.WeaponSlot; i++)
@@ -79,7 +78,7 @@ namespace Ships
                 var idx = i;
                 m_Weapons[i] = Instantiate(itemWeaponPrefab, weaponsContainer);
                 m_Weapons[i].Init("",
-                    () => signalBus.Fire(new SignalClickWeaponSlot(shipData, idx,
+                    () => onClickWeaponSlot(new SignalClickWeaponSlot(shipData, idx,
                         (RectTransform)m_Weapons[idx].transform)));
             }
 
@@ -89,27 +88,18 @@ namespace Ships
                 var idx = i;
                 m_Modules[i] = Instantiate(itemModulePrefab, modulesContainer);
                 m_Modules[i].Init("",
-                    () => signalBus.Fire(new SignalClickModuleSlot(shipData, idx,
+                    () => onClickModuleSlot(new SignalClickModuleSlot(shipData, idx,
                         (RectTransform)m_Modules[idx].transform)));
             }
         }
-
-        private void OnCallUpdate(SignalUpdateShipInfo signal)
-        {
-            if (signal.Ship.Data != m_ShipData) return;
-            
-            Repaint(signal.Ship);
-        }
         
-        private void OnRepaintShield(SignalChangeShipShieldAndHealth signalChange)
+        public void RepaintShield(Ship ship)
         {
-            if (signalChange.Ship.Data != m_ShipData) return;
+            shield.value = ship.Shield;
+            shieldText.text = $"{ship.Shield} / {ship.MaxShield}";
             
-            shield.value = signalChange.Ship.Shield;
-            shieldText.text = $"{signalChange.Ship.Shield} / {signalChange.Ship.MaxShield}";
-            
-            health.value = signalChange.Ship.Health;
-            healthText.text = $"{signalChange.Ship.Health} / {signalChange.Ship.MaxHealth}";
+            health.value = ship.Health;
+            healthText.text = $"{ship.Health} / {ship.MaxHealth}";
         }
     }
 }

@@ -14,30 +14,83 @@ namespace Ships
         [SerializeField] private ShipView shipViewB;
         [SerializeField] private ListModulesView modulesView;
 
-        public override void OnStart(SignalBus signalBus, DataBase dataBase)
+        private SignalBus m_SignalBus;
+        
+        public override void OnStart()
         {
-            base.OnStart(signalBus, dataBase);
-
+            m_SignalBus = SingletonContainer.Instance.Get<SignalBus>();
+            var dataBase = SingletonContainer.Instance.Get<DataBase>();
+            
             winnerText.text = "";
             
-            logger.Init(signalBus);
-            shipViewA.Init(signalBus, dataBase.ShipDataA);
-            shipViewB.Init(signalBus, dataBase.ShipDataB);
-            modulesView.Init(signalBus, dataBase.Weapons, dataBase.Modules);
+            logger.Init();
+            shipViewA.Init(dataBase.ShipDataA, OnClickWeaponSlot, OnClickModuleSlot);
+            shipViewB.Init(dataBase.ShipDataB, OnClickWeaponSlot, OnClickModuleSlot);
+            
+            modulesView.Init(dataBase.Weapons, dataBase.Modules, OnAddWeapon, OnAddModule);
 
             startFight.interactable = true;
             stopFight.interactable = false;
             
             startFight.onClick.AddListener(StartFight);
             stopFight.onClick.AddListener(StopFight);
-            
-            signalBus.Subscribe<SignalWinner>(Winner);
+
+            Subscribes();
         }
 
+        private void Subscribes()
+        {
+            m_SignalBus.Subscribe<SignalWinner>(Winner);
+            m_SignalBus.Subscribe<SignalMessage>(OnMessage);
+            m_SignalBus.Subscribe<SignalUpdateShipInfo>(UpdateShipInfo);
+            m_SignalBus.Subscribe<SignalChangeShipShieldAndHealth>(RepaintShipShield);
+        }
+        
         private void Winner(SignalWinner signal)
         {
             winnerText.text = $"{signal.WinnerName} WINNER!";
             StopFight();
+        }
+
+        private void OnMessage(SignalMessage signal)
+        {
+            logger.NewMessage(signal.Message);
+        }
+        
+        private void UpdateShipInfo(SignalUpdateShipInfo signal)
+        {
+            if(signal.Ship.Data == shipViewA.ShipData)
+                shipViewA.Repaint(signal.Ship);
+            else
+                shipViewB.Repaint(signal.Ship);
+        }
+        
+        private void RepaintShipShield(SignalChangeShipShieldAndHealth signal)
+        {
+            if(signal.Ship.Data == shipViewA.ShipData)
+                shipViewA.RepaintShield(signal.Ship);
+            else
+                shipViewB.RepaintShield(signal.Ship);
+        }
+
+        private void OnClickModuleSlot(SignalClickModuleSlot signal)
+        {
+            modulesView.SelectModuleSlot(signal);
+        }
+
+        private void OnClickWeaponSlot(SignalClickWeaponSlot signal)
+        {
+            modulesView.SelectWeaponSlot(signal);
+        }
+        
+        private void OnAddModule(SignalAddModuleForShip signal)
+        {
+            m_SignalBus.Fire(signal);
+        }
+
+        private void OnAddWeapon(SignalAddWeaponForShip signal)
+        {
+            m_SignalBus.Fire(signal);
         }
 
         private void StartFight()
@@ -52,7 +105,7 @@ namespace Ships
             shipViewA.SetInteract(false);
             shipViewB.SetInteract(false);
             
-            signalBus.Fire<SignalStartFight>();
+            m_SignalBus.Fire<SignalStartFight>();
         }
         
         private void StopFight()
@@ -63,7 +116,7 @@ namespace Ships
             shipViewA.SetInteract(true);
             shipViewB.SetInteract(true);
             
-            signalBus.Fire<SignalEndFight>();
+            m_SignalBus.Fire<SignalEndFight>();
         }
     }
 }

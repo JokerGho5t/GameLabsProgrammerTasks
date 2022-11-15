@@ -7,17 +7,16 @@ namespace Ships
     public class LoggerView : MonoBehaviour
     {
         [SerializeField] private ScrollRect scroll;
-        [SerializeField] private Text log;
+        [SerializeField] public Text log;
 
-        public void Init(SignalBus signalBus)
+        public void Init()
         {
-            signalBus.Subscribe<SignalMessage>(NewMessage);
             Clear();
         }
 
-        private void NewMessage(SignalMessage signal)
+        public void NewMessage(string message)
         {
-            log.text += $"{signal.Message}\n";
+            log.text += $"{message}\n";
             LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)log.transform);
             
             scroll.verticalNormalizedPosition = 0;
